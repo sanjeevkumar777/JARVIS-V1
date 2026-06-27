@@ -1,0 +1,344 @@
+<!-- Save as index.html (replace your existing file) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SelfHealth AI - Smart Symptom Analysis</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* ... insert the same CSS you already provided above (omitted here for brevity) ... */
+
+    /* Simple modal styling */
+    .modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.45);
+      z-index: 9999;
+    }
+    .modal.show { display: flex; }
+    .modal-card {
+      width: 400px;
+      max-width: 95%;
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+    }
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 4px solid rgba(0,0,0,0.08);
+      border-top-color: #2196F3;
+      animation: spin 0.9s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .small { font-size: 0.9rem; color:#555; }
+  </style>
+</head>
+<body>
+  <!-- keep your existing HTML layout exactly as you provided above -->
+  <!-- ... navbar, hero, features, results, footer ... -->
+
+  <!-- I'll show only the changed parts: the Analyze button, results card already exist -->
+  <!-- Add the Request Doctor Consult button inside the result card (below recommendations-box) -->
+  <!-- ... somewhere inside result-card after recommendations-box ... -->
+  <!-- Add modal for consult -->
+  <div id="consultModal" class="modal" role="dialog" aria-hidden="true">
+    <div class="modal-card">
+      <h3>Request Doctor Consultation</h3>
+      <p class="small">Provide contact details. We'll forward the summary to a clinician or clinic (demo).</p>
+      <div style="margin:12px 0;">
+        <input id="consultName" placeholder="Full name" style="width:100%; padding:8px; margin-bottom:8px;">
+        <input id="consultEmail" placeholder="Email" style="width:100%; padding:8px; margin-bottom:8px;">
+        <input id="consultPhone" placeholder="Phone (optional)" style="width:100%; padding:8px; margin-bottom:8px;">
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button onclick="closeConsultModal()" class="btn-secondary">Cancel</button>
+        <button id="consultSubmitBtn" class="btn-primary" onclick="submitConsultRequest()">Request Consult</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+/* ===========================
+   Client-side JS: script.js
+   =========================== */
+
+let userSelectedSeverity = null;
+let lastAiSummaryForConsult = null; // short text saved after AI response
+
+// Keep same symptomDatabase (you can keep it for offline fallback)
+const symptomDatabase = { /* ... paste your symptomDatabase object here ... */ };
+
+// Utility: set severity buttons
+function setSeverity(severity) {
+  userSelectedSeverity = severity;
+  document.querySelectorAll('.severity-btn').forEach(btn => btn.classList.remove('active'));
+  const btn = document.querySelector(`[data-severity="${severity}"]`);
+  if (btn) btn.classList.add('active');
+  const labels = { low: 'Low', medium: 'Medium', high: 'High' };
+  document.getElementById('selectedSeverity').textContent = labels[severity] || 'Not selected';
+}
+
+// small helper to show toast alerts (simple)
+function showAlert(msg) {
+  alert(msg);
+}
+
+// Call server AI endpoint
+async function callAiAnalyze(text, severity) {
+  const res = await fetch('/api/analyze-symptoms', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, severity })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({error:'unknown'}));
+    throw new Error(err?.error || 'AI request failed');
+  }
+  const json = await res.json();
+  return json;
+}
+
+// When user clicks analyze (or presses enter)
+async function analyzeSymptoms() {
+  const inputEl = document.getElementById('symptomInput');
+  const input = inputEl.value.trim();
+  if (!input) { showAlert('Please describe your symptoms'); return; }
+  if (!userSelectedSeverity) { showAlert('Please select a severity level (Low/Medium/High)'); return; }
+
+  // show loading state
+  const analyzeBtn = document.querySelector('.btn-primary');
+  const originalBtnText = analyzeBtn.innerHTML;
+  analyzeBtn.disabled = true;
+  analyzeBtn.innerHTML = '<span class="spinner"></span> Analyzing...';
+
+  try {
+    // call server
+    const ai = await callAiAnalyze(input, userSelectedSeverity);
+    // expected structure:
+    // { matched_symptom: "headache", severity: "yellow", conditions: [{name, probability}], recommendations: [...], summary: "short text" }
+    displayResultsFromAi(ai, input);
+  } catch (err) {
+    console.error(err);
+    // fallback: try local DB
+    const localMatch = findLocalMatch(input);
+    if (localMatch) {
+      displayResultsLocal(localMatch, input);
+      showAlert('AI service failed — using local fallback results.');
+    } else {
+      showAlert('Could not analyze symptoms. Try simplifying the description or try again later.');
+    }
+  } finally {
+    analyzeBtn.disabled = false;
+    analyzeBtn.innerHTML = originalBtnText;
+  }
+}
+
+function findLocalMatch(input) {
+  for (let key in symptomDatabase) {
+    if (input.toLowerCase().includes(key)) return { key, data: symptomDatabase[key] };
+  }
+  return null;
+}
+
+function displayResultsLocal(match, userInput) {
+  const { key, data } = match;
+  // use your original local display logic (adjusted)
+  const adjustedSeverity = adjustSeverityLevel(data.severity, userSelectedSeverity);
+  const adjustedConditions = adjustConditions(data.conditions, userSelectedSeverity);
+  const recs = adjustRecommendations(data.recommendations, userSelectedSeverity);
+
+  // set result text
+  document.getElementById('resultSymptom').textContent = userInput;
+  const severityBadge = document.getElementById('severityBadge');
+  severityBadge.className = `severity-badge severity-${adjustedSeverity}`;
+  severityBadge.textContent = getSeverityLabel(adjustedSeverity);
+
+  const conditionsList = document.getElementById('conditionsList');
+  conditionsList.innerHTML = adjustedConditions.map(c => `
+    <div class="condition-item">
+      <span class="condition-name">${c.name}</span>
+      <div class="probability">
+        <div class="probability-bar">
+          <div class="probability-fill" style="width: ${c.probability}%"></div>
+        </div>
+        <span class="probability-text">${c.probability}%</span>
+      </div>
+    </div>
+  `).join('');
+
+  const recommendationsList = document.getElementById('recommendationsList');
+  recommendationsList.innerHTML = recs.map(r => `<li>${r}</li>`).join('');
+
+  // Save a short summary for consult (local)
+  lastAiSummaryForConsult = `Symptoms: ${userInput}\nPossibilities: ${adjustedConditions.slice(0,3).map(x=>x.name+'('+x.probability+'%)').join(', ')}\nRecommendations: ${recs.slice(0,3).join('; ')}`;
+
+  // show consult button (append if not present)
+  showConsultButton();
+
+  document.getElementById('resultCard').style.display = 'block';
+  document.getElementById('demoPlaceholder').style.display = 'none';
+}
+
+function displayResultsFromAi(ai, userInput) {
+  const severityBadge = document.getElementById('severityBadge');
+
+  // normalize
+  const finalSeverity = ai.severity || 'yellow';
+  const conditions = Array.isArray(ai.conditions) ? ai.conditions : [];
+  const recommendations = Array.isArray(ai.recommendations) ? ai.recommendations : [];
+  const summary = ai.summary || ai.short_summary || '';
+
+  // set header
+  document.getElementById('resultSymptom').textContent = userInput;
+  severityBadge.className = `severity-badge severity-${finalSeverity}`;
+  severityBadge.textContent = getSeverityLabel(finalSeverity);
+
+  // conditions UI
+  const conditionsList = document.getElementById('conditionsList');
+  conditionsList.innerHTML = conditions.map(c => {
+    const prob = Math.min(100, Math.max(0, Math.round(Number(c.probability) || 0)));
+    return `
+      <div class="condition-item">
+        <span class="condition-name">${c.name}</span>
+        <div class="probability">
+          <div class="probability-bar">
+            <div class="probability-fill" style="width: ${prob}%"></div>
+          </div>
+          <span class="probability-text">${prob}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // recommendations UI
+  const recommendationsList = document.getElementById('recommendationsList');
+  recommendationsList.innerHTML = recommendations.map(r => `<li>${r}</li>`).join('');
+
+  // save summary for consult flow
+  lastAiSummaryForConsult = summary || `Symptoms: ${userInput}\nTop suggestions: ${recommendations.slice(0,3).join('; ')}`;
+
+  // show consult button
+  showConsultButton();
+
+  document.getElementById('resultCard').style.display = 'block';
+  document.getElementById('demoPlaceholder').style.display = 'none';
+}
+
+function showConsultButton() {
+  // if button not already added, append it under resultCard
+  if (!document.getElementById('consultButton')) {
+    const btn = document.createElement('button');
+    btn.id = 'consultButton';
+    btn.className = 'btn-primary';
+    btn.style.marginTop = '12px';
+    btn.textContent = 'Request Doctor Consult';
+    btn.onclick = openConsultModal;
+    const resultCard = document.getElementById('resultCard');
+    resultCard.appendChild(btn);
+  }
+}
+
+/* ================= Utility functions (reuse from your code) ================= */
+
+function adjustSeverityLevel(baseSeverity, userSeverity) {
+  const severityMap = { green: 0, yellow: 1, red: 2 };
+  const severityLevels = ['green','yellow','red'];
+  const baseLevel = severityMap[baseSeverity] ?? 1;
+  const userLevel = { low:0, medium:1, high:2 }[userSeverity] ?? 1;
+  const adjustedLevel = Math.round((baseLevel + userLevel)/2);
+  return severityLevels[adjustedLevel];
+}
+
+function adjustConditions(conditions, userSeverity) {
+  const severityMultipliers = { low:0.7, medium:1.0, high:1.3 };
+  const multiplier = severityMultipliers[userSeverity] ?? 1.0;
+  return conditions.map(condition => ({ ...condition, probability: Math.min(100, Math.round(condition.probability * multiplier)) })).sort((a,b)=>b.probability-a.probability);
+}
+
+function adjustRecommendations(recommendations, userSeverity) {
+  const severityRecommendations = {
+    low: ['Monitor your symptoms','Get adequate rest','Stay hydrated'],
+    medium: recommendations,
+    high: ['Seek immediate medical attention','Call your doctor or local urgent care', ...(recommendations.slice(0,2))]
+  };
+  return severityRecommendations[userSeverity] || recommendations;
+}
+
+function getSeverityLabel(severity) {
+  const labels = { green: 'Low', yellow: 'Moderate', red: 'High' };
+  return labels[severity] || 'Unknown';
+}
+
+/* ================= Doctor consult modal & API ================= */
+
+function openConsultModal() {
+  document.getElementById('consultModal').classList.add('show');
+  document.getElementById('consultModal').setAttribute('aria-hidden','false');
+}
+
+function closeConsultModal() {
+  document.getElementById('consultModal').classList.remove('show');
+  document.getElementById('consultModal').setAttribute('aria-hidden','true');
+}
+
+async function submitConsultRequest() {
+  const name = document.getElementById('consultName').value.trim();
+  const email = document.getElementById('consultEmail').value.trim();
+  const phone = document.getElementById('consultPhone').value.trim();
+
+  if (!name || !email) { showAlert('Please provide name and email'); return; }
+
+  const payload = {
+    name, email, phone,
+    summary: lastAiSummaryForConsult || 'No summary available'
+  };
+
+  const submitBtn = document.getElementById('consultSubmitBtn');
+  const original = submitBtn.innerText;
+  submitBtn.disabled = true;
+  submitBtn.innerText = 'Sending...';
+
+  try {
+    const res = await fetch('/api/request-consult', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to request consult');
+    const data = await res.json();
+    showAlert('Consult request submitted. Reference: ' + (data.requestId || 'N/A'));
+    closeConsultModal();
+  } catch (err) {
+    console.error(err);
+    showAlert('Failed to submit consult request. Try again later.');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerText = original;
+  }
+}
+
+/* allow Enter key in input to trigger analyze */
+document.addEventListener('DOMContentLoaded', function() {
+  const input = document.getElementById('symptomInput');
+  input.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      analyzeSymptoms();
+    }
+  });
+
+  // restore severity if you want default
+  // setSeverity('medium');
+});
+  </script>
+</body>
+</html>

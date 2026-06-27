@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SelfHealth AI - Smart Symptom Analysis</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: #333; }
+    
+    /* Header */
+    header { background: rgba(255,255,255,0.95); padding: 15px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .header-content { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { color: #667eea; font-size: 24px; }
+    
+    /* Main container */
+    .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+    
+    /* Hero section */
+    .hero { background: white; border-radius: 12px; padding: 40px; box-shadow: 0 8px 30px rgba(0,0,0,0.15); margin-bottom: 30px; text-align: center; }
+    .hero h2 { color: #667eea; margin-bottom: 10px; font-size: 28px; }
+    .hero p { color: #666; margin-bottom: 20px; line-height: 1.6; }
+    
+    /* Input section */
+    .input-section { background: white; border-radius: 12px; padding: 30px; box-shadow: 0 8px 30px rgba(0,0,0,0.15); margin-bottom: 20px; }
+    .input-section h3 { color: #333; margin-bottom: 15px; }
+    
+    textarea { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical; min-height: 100px; }
+    textarea:focus { outline: none; border-color: #667eea; }
+    
+    /* Severity selector */
+    .severity-selector { margin: 20px 0; }
+    .severity-selector label { display: block; margin-bottom: 10px; font-weight: 600; color: #333; }
+    .severity-buttons { display: flex; gap: 10px; }
+    .severity-btn { padding: 10px 20px; border: 2px solid #ddd; background: white; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s; }
+    .severity-btn:hover { border-color: #667eea; }
+    .severity-btn.active { background: #667eea; color: white; border-color: #667eea; }
+    
+    /* Buttons */
+    .btn-primary, .btn-secondary { padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; font-size: 14px; }
+    .btn-primary { background: #667eea; color: white; }
+    .btn-primary:hover { background: #5568d3; transform: translateY(-2px); }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; transform: none; }
+    .btn-secondary { background: #f0f0f0; color: #333; border: 1px solid #ddd; }
+    .btn-secondary:hover { background: #e0e0e0; }
+    
+    /* Results section */
+    .result-card { background: white; border-radius: 12px; padding: 30px; box-shadow: 0 8px 30px rgba(0,0,0,0.15); display: none; }
+    .result-card h3 { color: #667eea; margin-bottom: 15px; }
+    
+    .severity-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; color: white; font-weight: 600; margin-bottom: 15px; }
+    .severity-badge.severity-green { background: #4caf50; }
+    .severity-badge.severity-yellow { background: #ff9800; }
+    .severity-badge.severity-red { background: #f44336; }
+    
+    .condition-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #f0f0f0; }
+    .condition-name { font-weight: 600; color: #333; }
+    .probability { display: flex; align-items: center; gap: 10px; }
+    .probability-bar { width: 100px; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; }
+    .probability-fill { height: 100%; background: #667eea; }
+    .probability-text { font-weight: 600; color: #667eea; min-width: 40px; text-align: right; }
+    
+    .recommendations-box { margin-top: 20px; }
+    .recommendations-box h4 { color: #333; margin-bottom: 10px; }
+    .recommendations-box ul { list-style: none; }
+    .recommendations-box li { padding: 8px 0; color: #555; padding-left: 20px; position: relative; }
+    .recommendations-box li:before { content: "✓"; position: absolute; left: 0; color: #4caf50; font-weight: bold; }
+    
+    /* Modal */
+    .modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); z-index: 9999; }
+    .modal.show { display: flex; }
+    .modal-card { width: 400px; max-width: 95%; background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
+    .modal-card h3 { color: #667eea; margin-bottom: 10px; }
+    .modal-card p { color: #555; font-size: 0.9rem; margin-bottom: 12px; }
+    
+    input[type="text"], input[type="email"] { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; }
+    input[type="text"]:focus, input[type="email"]:focus { outline: none; border-color: #667eea; }
+    
+    .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; }
+    
+    /* Spinner */
+    .spinner { width: 28px; height: 28px; border-radius: 50%; border: 4px solid rgba(255,255,255,0.3); border-top-color: white; animation: spin 0.9s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    /* Demo placeholder */
+    .demo-placeholder { background: white; border-radius: 12px; padding: 30px; text-align: center; color: #999; }
+    
+    /* Slide Navigation */
+    .slides-container { position: relative; overflow: hidden; }
+    .slide { background: white; border-radius: 12px; padding: 30px; box-shadow: 0 8px 30px rgba(0,0,0,0.15); display: none; animation: slideIn 0.5s ease-in-out; }
+    .slide.active { display: block; }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    
+    .slide h2 { color: #667eea; margin-bottom: 20px; font-size: 24px; }
+    .slide p { color: #666; margin-bottom: 15px; line-height: 1.6; }
+    
+    .quick-select { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 20px 0; }
+    .quick-btn { padding: 15px; border: 2px solid #ddd; background: white; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s; text-align: center; }
+    .quick-btn:hover { border-color: #667eea; background: #f0f4ff; }
+    .quick-btn.selected { background: #667eea; color: white; border-color: #667eea; }
+    
+    .slide-navigation { display: flex; gap: 10px; margin-top: 30px; justify-content: space-between; }
+    .slide-progress { display: flex; gap: 5px; align-items: center; }
+    .progress-dot { width: 10px; height: 10px; border-radius: 50%; background: #ddd; transition: all 0.3s; }
+    .progress-dot.active { background: #667eea; width: 30px; border-radius: 5px; }
+    
+    .input-field { display: flex; flex-direction: column; margin: 15px 0; }
+    .input-field label { font-weight: 600; margin-bottom: 8px; color: #333; }
+    .input-field input, .input-field textarea { padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-family: inherit; }
+    .input-field input:focus, .input-field textarea:focus { outline: none; border-color: #667eea; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-content">
+      <h1>🏥 SelfHealth AI</h1>
+      <p>Smart Symptom Analysis</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="hero">
+      <h2>Symptom Analysis & Guidance</h2>
+      <p>Step by step symptom analysis for better health understanding</p>
+    </div>
+
+    <!-- Slides Container -->
+    <div class="slides-container">
+      <!-- Slide 1: Symptom Input -->
+      <div class="slide active" id="slide-1">
+        <h2>Step 1: What symptoms do you have?</h2>
+        <p>Describe your primary symptoms in detail.</p>
+        <div class="input-field">
+          <label>Symptom Description:</label>
+          <textarea id="symptomInput" placeholder="E.g., I have a high fever, severe headache, and body aches since yesterday..." style="min-height: 120px;"></textarea>
+        </div>
+        <p style="font-size: 12px; color: #999; margin-top: 10px;">💡 Try: fever, cold, cough, vomit, diabetes, bp, headache, weakness, body pain</p>
+        <div class="slide-navigation">
+          <div class="slide-progress">
+            <div class="progress-dot active"></div>
+            <div class="progress-dot"></div>
+            <div class="progress-dot"></div>
+          </div>
+          <button class="btn-primary" onclick="goToSlide(2)">Next</button>
+        </div>
+      </div>
+
+      <!-- Slide 2: Severity Selection -->
+      <div class="slide" id="slide-2">
+        <h2>Step 2: How severe are your symptoms?</h2>
+        <p>Select the severity level that best describes your condition.</p>
+        <div class="quick-select">
+          <button class="quick-btn" onclick="setSeverity('low')">
+            <div style="font-size: 24px;">🟢</div>
+            <div>Low</div>
+            <div style="font-size: 11px; color: #999;">Mild symptoms</div>
+          </button>
+          <button class="quick-btn" onclick="setSeverity('medium')">
+            <div style="font-size: 24px;">🟡</div>
+            <div>Medium</div>
+            <div style="font-size: 11px; color: #999;">Moderate symptoms</div>
+          </button>
+          <button class="quick-btn" onclick="setSeverity('high')">
+            <div style="font-size: 24px;">🔴</div>
+            <div>High</div>
+            <div style="font-size: 11px; color: #999;">Severe symptoms</div>
+          </button>
+        </div>
+        <div style="margin-top: 15px; padding: 15px; background: #f0f4ff; border-left: 4px solid #667eea; border-radius: 6px;">
+          <strong>Selected:</strong> <span id="selectedSeverityDisplay">Not selected</span>
+        </div>
+        <div class="slide-navigation">
+          <div class="slide-progress">
+            <div class="progress-dot active"></div>
+            <div class="progress-dot active"></div>
+            <div class="progress-dot"></div>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn-secondary" onclick="goToSlide(1)">Back</button>
+            <button class="btn-primary" onclick="goToSlide(3)">Next</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 3: Duration -->
+      <div class="slide" id="slide-3">
+        <h2>Step 3: How long have you had these symptoms?</h2>
+        <p>This helps us understand the timeline of your condition.</p>
+        <div class="quick-select">
+          <button class="quick-btn" onclick="setDuration('less-than-1-day'); goToSlide(4)">Less than 1 day</button>
+          <button class="quick-btn" onclick="setDuration('1-3-days'); goToSlide(4)">1-3 days</button>
+          <button class="quick-btn" onclick="setDuration('4-7-days'); goToSlide(4)">4-7 days</button>
+          <button class="quick-btn" onclick="setDuration('more-than-1-week'); goToSlide(4)">More than 1 week</button>
+        </div>
+        <div class="slide-navigation">
+          <div class="slide-progress">
+            <div class="progress-dot active"></div>
+            <div class="progress-dot active"></div>
+            <div class="progress-dot"></div>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn-secondary" onclick="goToSlide(2)">Back</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 4: Results -->
+      <div class="slide" id="slide-4">
+        <h2>Analysis Results</h2>
+        <div class="result-card" style="box-shadow: none; padding: 0; display: block;">
+          <h3>Symptoms: <span id="resultSymptom"></span></h3>
+          <div class="severity-badge" id="severityBadge">Moderate</div>
+          
+          <h4 style="margin-top: 20px; color: #333;">Possible Conditions</h4>
+          <div id="conditionsList"></div>
+          
+          <div class="recommendations-box">
+            <h4>Recommendations</h4>
+            <ul id="recommendationsList"></ul>
+          </div>
+        </div>
+        <div class="slide-navigation">
+          <div class="slide-progress">
+            <div class="progress-dot active"></div>
+            <div class="progress-dot active"></div>
+            <div class="progress-dot active"></div>
+          </div>
+          <div style="display: flex; gap: 10px; align-items:center; flex-wrap:wrap;">
+            <button class="btn-secondary" onclick="goToSlide(1)">Start Over</button>
+            <button class="btn-secondary" id="findHospitalsBtn" onclick="findHospitalsForUser()">Find Hospitals</button>
+            <button class="btn-secondary" id="findDoctorsBtn" onclick="findDoctorsForUser()">Find Doctors</button>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input id="regionInput" type="text" placeholder="Region or city" style="padding:8px;border:1px solid #ddd;border-radius:6px;width:150px;">
+              <button class="btn-secondary" onclick="searchHospitalsByRegion()">Search</button>
+            </div>
+            <button class="btn-primary" id="consultButton2" onclick="openConsultModal()" style="display: none;">Request Consult</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hospitals Panel -->
+    <div id="hospitalsPanel" class="slide" style="display:none; margin-top:20px;">
+      <h2>Nearby Hospitals</h2>
+      <div style="display:flex; gap:20px; align-items:flex-start;">
+        <div style="flex:1; min-width:250px;">
+          <ul id="hospitalsList" style="list-style:none; padding:0;"></ul>
+        </div>
+        <div id="mapContainer" style="width:400px; height:300px; background:#eee; border-radius:8px; overflow:hidden; flex:0 0 400px;">
+          <div id="map" style="width:100%; height:100%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Doctors Panel -->
+    <div id="doctorsPanel" class="slide" style="display:none; margin-top:20px;">
+      <h2>Nearby Doctors & Clinics</h2>
+      <div style="display:flex; gap:20px; align-items:flex-start;">
+        <div style="flex:1; min-width:250px;">
+          <div style="display:flex; gap:8px; margin-bottom:15px;">
+            <input id="doctorTypeInput" type="text" placeholder="Doctor type (cardiologist, dentist)" style="padding:8px;border:1px solid #ddd;border-radius:6px;flex:1;">
+            <button class="btn-secondary" onclick="searchDoctorsByType()">Search</button>
+          </div>
+          <ul id="doctorsList" style="list-style:none; padding:0;"></ul>
+        </div>
+        <div id="doctorMapContainer" style="width:400px; height:300px; background:#eee; border-radius:8px; overflow:hidden; flex:0 0 400px;">
+          <div id="doctorMap" style="width:100%; height:100%;"></div>
+        </div>
+      </div>
+    </div>
+
+  <!-- Consult Modal -->
+  <div id="consultModal" class="modal" role="dialog" aria-hidden="true">
+    <div class="modal-card">
+      <h3>Request Doctor Consultation</h3>
+      <p>Provide your contact details. A clinician will review your case.</p>
+      <input id="consultName" type="text" placeholder="Full name">
+      <input id="consultEmail" type="email" placeholder="Email">
+      <input id="consultPhone" type="text" placeholder="Phone (optional)">
+      <div class="modal-buttons">
+        <button class="btn-secondary" onclick="closeConsultModal()">Cancel</button>
+        <button class="btn-primary" id="consultSubmitBtn" onclick="submitConsultRequest()">Request Consult</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+let userSelectedSeverity = null;
+let lastAiSummaryForConsult = null;
+
+// Local Symptom Database
+const symptomDatabase = {
+  fever: {
+    severity: 'yellow',
+    conditions: [
+      { name: 'Common Cold', probability: 45 },
+      { name: 'Flu (Influenza)', probability: 40 },
+      { name: 'Viral Infection', probability: 35 },
+      { name: 'Bacterial Infection', probability: 20 }
+    ],
+    recommendations: [
+      'Rest and get adequate sleep',
+      'Drink plenty of fluids (water, herbal tea, warm soup)',
+      'Use fever-reducing medications like paracetamol or ibuprofen',
+      'Maintain body temperature with light clothing',
+      'Consult doctor if fever persists beyond 3 days or exceeds 103°F'
+    ]
+  },
+  cold: {
+    severity: 'green',
+    conditions: [
+      { name: 'Common Cold', probability: 85 },
+      { name: 'Seasonal Allergies', probability: 15 },
+      { name: 'Early Flu', probability: 10 }
+    ],
+    recommendations: [
+      'Stay hydrated with warm fluids',
+      'Use saline nasal drops or spray',
+      'Get plenty of rest',
+      'Gargle with warm salt water',
+      'Vitamin C supplements may help reduce duration'
+    ]
+  },
+  cough: {
+    severity: 'yellow',
+    conditions: [
+      { name: 'Common Cold', probability: 40 },
+      { name: 'Bronchitis', probability: 35 },
+      { name: 'Asthma', probability: 20 },
+      { name: 'Pneumonia', probability: 15 }
+    ],
+    recommendations: [
+      'Stay hydrated and drink warm fluids',
+      'Use honey and lemon in warm water',
+      'Avoid irritants like smoke and pollution',
+      'Use cough drops or lozenges',
+      'Seek medical attention if cough persists for more than 2 weeks'
+    ]
+  },
+  vomit: {
+    severity: 'yellow',
+    conditions: [
+      { name: 'Gastroenteritis (Food Poisoning)', probability: 50 },
+      { name: 'Nausea/Indigestion', probability: 30 },
+      { name: 'Migraine', probability: 15 },
+      { name: 'Stomach Ulcer', probability: 10 }
+    ],
+    recommendations: [
+      'Avoid food for first few hours',
+      'Sip small amounts of clear fluids (water, ginger ale)',
+      'Once stable, eat bland foods like crackers or toast',
+      'Avoid dairy and fatty foods',
+      'Seek immediate care if vomiting persists or accompanied by severe abdominal pain'
+    ]
+  },
+  diabetes: {
+    severity: 'red',
+    conditions: [
+      { name: 'Type 2 Diabetes', probability: 60 },
+      { name: 'Type 1 Diabetes', probability: 25 },
+      { name: 'Prediabetes', probability: 15 }
+    ],
+    recommendations: [
+      'Consult an endocrinologist immediately',
+      'Monitor blood sugar levels regularly',
+      'Maintain a healthy diet low in refined sugars',
+      'Exercise regularly (150 minutes per week)',
+      'Take prescribed medications consistently',
+      'Check feet daily for any sores or infections'
+    ]
+  },
+  bp: {
+    severity: 'red',
+    conditions: [
+      { name: 'Hypertension (High Blood Pressure)', probability: 70 },
+      { name: 'Hypotension (Low Blood Pressure)', probability: 20 },
+      { name: 'White Coat Syndrome', probability: 10 }
+    ],
+    recommendations: [
+      'See a cardiologist for proper diagnosis',
+      'Monitor blood pressure daily at home',
+      'Reduce sodium intake',
+      'Exercise regularly and manage weight',
+      'Manage stress through meditation or yoga',
+      'Avoid alcohol and smoking',
+      'Take antihypertensive medications as prescribed'
+    ]
+  },
+  headache: {
+    severity: 'yellow',
+    conditions: [
+      { name: 'Tension Headache', probability: 55 },
+      { name: 'Migraine', probability: 25 },
+      { name: 'Dehydration', probability: 15 },
+      { name: 'Sinusitis', probability: 10 }
+    ],
+    recommendations: [
+      'Rest in a quiet, dark room',
+      'Apply hot or cold compress to head or neck',
+      'Stay hydrated by drinking water',
+      'Take over-the-counter pain relievers (ibuprofen, acetaminophen)',
+      'Practice relaxation techniques',
+      'Seek medical attention if headache is severe or accompanied by vision changes'
+    ]
+  },
+  'body pain': {
+    severity: 'yellow',
+    conditions: [
+      { name: 'Muscle Strain', probability: 40 },
+      { name: 'Viral Infection', probability: 30 },
+      { name: 'Arthritis', probability: 20 },
+      { name: 'Fibromyalgia', probability: 10 }
+    ],
+    recommendations: [
+      'Rest the affected areas',
+      'Apply ice packs for first 48 hours, then heat',
+      'Take anti-inflammatory medications',
+      'Gentle stretching and light movement',
+      'Massage or physical therapy may help',
+      'Ensure adequate sleep and hydration'
+    ]
+  },
+  weakness: {
+    severity: 'yellow',
+    conditions: [
+      { name: 'Fatigue/Lack of Sleep', probability: 45 },
+      { name: 'Anemia', probability: 25 },
+      { name: 'Thyroid Disorder', probability: 20 },
+      { name: 'Nutritional Deficiency', probability: 15 }
+    ],
+    recommendations: [
+      'Get 7-9 hours of sleep nightly',
+      'Eat a balanced diet rich in iron and B vitamins',
+      'Stay hydrated throughout the day',
+      'Exercise regularly to build strength',
+      'Consult a doctor for blood tests if weakness persists',
+      'Manage stress and avoid overexertion'
+    ]
+  }
+};
+
+let userDuration = null;
+
+// Slide Navigation Functions
+function goToSlide(slideNum) {
+  const input = document.getElementById('symptomInput').value.trim();
+  
+  if (slideNum === 2 && !input) {
+    showAlert('Please describe your symptoms');
+    return;
+  }
+  
+  if (slideNum === 3 && !userSelectedSeverity) {
+    showAlert('Please select a severity level');
+    return;
+  }
+  
+  // Hide all slides
+  document.querySelectorAll('.slide').forEach(slide => slide.classList.remove('active'));
+  
+  // Show target slide
+  const targetSlide = document.getElementById(`slide-${slideNum}`);
+  if (targetSlide) {
+    targetSlide.classList.add('active');
+    
+    // If going to results slide, analyze symptoms
+    if (slideNum === 4) {
+      analyzeSymptoms();
+    }
+  }
+}
+
+function setSeverity(severity) {
+  userSelectedSeverity = severity;
+  
+  // Update quick button styling
+  document.querySelectorAll('.quick-btn').forEach(btn => btn.classList.remove('selected'));
+  event.target.closest('.quick-btn').classList.add('selected');
+  
+  // Update display
+  const labels = { low: '🟢 Low', medium: '🟡 Medium', high: '🔴 High' };
+  document.getElementById('selectedSeverityDisplay').textContent = labels[severity] || 'Not selected';
+}
+
+function setDuration(duration) {
+  userDuration = duration;
+  document.querySelectorAll('.quick-btn').forEach(btn => btn.classList.remove('selected'));
+  event.target.closest('.quick-btn').classList.add('selected');
+}
+
+function showAlert(msg) {
+  alert(msg);
+}
+
+async function callAiAnalyze(text, severity) {
+  const res = await fetch('/api/analyze-symptoms', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, severity })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'unknown' }));
+    throw new Error(err?.error || 'AI request failed');
+  }
+  return await res.json();
+}
+
+async function analyzeSymptoms() {
+  const inputEl = document.getElementById('symptomInput');
+  const input = inputEl.value.trim();
+  if (!input) { showAlert('Please describe your symptoms'); return; }
+  if (!userSelectedSeverity) { showAlert('Please select a severity level'); return; }
+
+  try {
+    const ai = await callAiAnalyze(input, userSelectedSeverity);
+    displayResultsFromAi(ai, input);
+  } catch (err) {
+    console.error(err);
+    // Try local database fallback
+    const localResult = findLocalMatch(input);
+    if (localResult) {
+      displayResultsLocal(localResult, input);
+      console.log('Using local symptom database (AI service unavailable)');
+    } else {
+      showAlert('Could not analyze symptoms. Try mentioning: fever, cold, cough, vomit, diabetes, bp, headache, weakness, or body pain.');
+    }
+  }
+}
+
+function findLocalMatch(input) {
+  const lowerInput = input.toLowerCase();
+  for (let symptom in symptomDatabase) {
+    if (lowerInput.includes(symptom)) {
+      return { symptom, data: symptomDatabase[symptom] };
+    }
+  }
+  return null;
+}
+
+function displayResultsLocal(match, userInput) {
+  const { symptom, data } = match;
+  const adjustedSeverity = adjustSeverityLevel(data.severity, userSelectedSeverity);
+  const adjustedConditions = adjustConditions(data.conditions, userSelectedSeverity);
+  const adjustedRecommendations = adjustRecommendations(data.recommendations, userSelectedSeverity);
+
+  document.getElementById('resultSymptom').textContent = userInput;
+  const severityBadge = document.getElementById('severityBadge');
+  severityBadge.className = `severity-badge severity-${adjustedSeverity}`;
+  severityBadge.textContent = getSeverityLabel(adjustedSeverity);
+
+  const conditionsList = document.getElementById('conditionsList');
+  conditionsList.innerHTML = adjustedConditions.map(c => {
+    const prob = Math.min(100, Math.max(0, Math.round(Number(c.probability) || 0)));
+    return `
+      <div class="condition-item">
+        <span class="condition-name">${c.name}</span>
+        <div class="probability">
+          <div class="probability-bar">
+            <div class="probability-fill" style="width: ${prob}%"></div>
+          </div>
+          <span class="probability-text">${prob}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const recommendationsList = document.getElementById('recommendationsList');
+  recommendationsList.innerHTML = adjustedRecommendations.map(r => `<li>${r}</li>`).join('');
+
+  lastAiSummaryForConsult = `Symptoms: ${userInput}\nTop Conditions: ${adjustedConditions.slice(0,3).map(x => x.name + ' (' + x.probability + '%)').join(', ')}\nRecommendations: ${adjustedRecommendations.slice(0,3).join('; ')}`;
+
+  // Show consult button
+  document.getElementById('consultButton2').style.display = 'block';
+}
+
+function displayResultsFromAi(ai, userInput) {
+  const severityBadge = document.getElementById('severityBadge');
+  const finalSeverity = ai.severity || 'yellow';
+  const conditions = Array.isArray(ai.conditions) ? ai.conditions : [];
+  const recommendations = Array.isArray(ai.recommendations) ? ai.recommendations : [];
+  const summary = ai.summary || '';
+
+  document.getElementById('resultSymptom').textContent = userInput;
+  severityBadge.className = `severity-badge severity-${finalSeverity}`;
+  severityBadge.textContent = { green: 'Low', yellow: 'Moderate', red: 'High' }[finalSeverity] || 'Unknown';
+
+  const conditionsList = document.getElementById('conditionsList');
+  conditionsList.innerHTML = conditions.map(c => {
+    const prob = Math.min(100, Math.max(0, Math.round(Number(c.probability) || 0)));
+    return `
+      <div class="condition-item">
+        <span class="condition-name">${c.name}</span>
+        <div class="probability">
+          <div class="probability-bar">
+            <div class="probability-fill" style="width: ${prob}%"></div>
+          </div>
+          <span class="probability-text">${prob}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const recommendationsList = document.getElementById('recommendationsList');
+  recommendationsList.innerHTML = recommendations.map(r => `<li>${r}</li>`).join('');
+
+  lastAiSummaryForConsult = summary || `Symptoms: ${userInput}`;
+
+  // Show consult button
+  document.getElementById('consultButton2').style.display = 'block';
+}
+
+function openConsultModal() {
+  document.getElementById('consultModal').classList.add('show');
+  document.getElementById('consultModal').setAttribute('aria-hidden', 'false');
+}
+
+function closeConsultModal() {
+  document.getElementById('consultModal').classList.remove('show');
+  document.getElementById('consultModal').setAttribute('aria-hidden', 'true');
+}
+
+async function submitConsultRequest() {
+  const name = document.getElementById('consultName').value.trim();
+  const email = document.getElementById('consultEmail').value.trim();
+  const phone = document.getElementById('consultPhone').value.trim();
+
+  if (!name || !email) { showAlert('Please provide name and email'); return; }
+
+  const submitBtn = document.getElementById('consultSubmitBtn');
+  const original = submitBtn.innerText;
+  submitBtn.disabled = true;
+  submitBtn.innerText = 'Sending...';
+
+  try {
+    const res = await fetch('/api/request-consult', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, phone, summary: lastAiSummaryForConsult || 'No summary' })
+    });
+    if (!res.ok) throw new Error('Failed');
+    const data = await res.json();
+    showAlert('Consult request submitted! Reference: ' + (data.requestId || 'N/A'));
+    closeConsultModal();
+  } catch (err) {
+    showAlert('Failed to submit. Try again later.');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerText = original;
+  }
+}
+
+// Helper functions for severity and recommendations adjustment
+function adjustSeverityLevel(baseSeverity, userSeverity) {
+  const severityMap = { green: 0, yellow: 1, red: 2 };
+  const severityLevels = ['green', 'yellow', 'red'];
+  const baseLevel = severityMap[baseSeverity] ?? 1;
+  const userLevel = { low: 0, medium: 1, high: 2 }[userSeverity] ?? 1;
+  const adjustedLevel = Math.round((baseLevel + userLevel) / 2);
+  return severityLevels[Math.min(2, Math.max(0, adjustedLevel))];
+}
+
+function adjustConditions(conditions, userSeverity) {
+  const severityMultipliers = { low: 0.7, medium: 1.0, high: 1.3 };
+  const multiplier = severityMultipliers[userSeverity] ?? 1.0;
+  return conditions
+    .map(condition => ({
+      ...condition,
+      probability: Math.min(100, Math.round(condition.probability * multiplier))
+    }))
+    .sort((a, b) => b.probability - a.probability);
+}
+
+function adjustRecommendations(recommendations, userSeverity) {
+  if (userSeverity === 'high') {
+    return [
+      '⚠️ Seek immediate medical attention or call emergency services',
+      '⚠️ Contact your doctor or visit urgent care immediately',
+      ...recommendations.slice(0, 2)
+    ];
+  }
+  if (userSeverity === 'low') {
+    return [
+      'Monitor your symptoms closely',
+      'Rest and stay hydrated',
+      ...recommendations.slice(0, 2)
+    ];
+  }
+  return recommendations;
+}
+
+function getSeverityLabel(severity) {
+  const labels = { green: 'Low', yellow: 'Moderate', red: 'High' };
+  return labels[severity] || 'Unknown';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const input = document.getElementById('symptomInput');
+  input.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter' && e.ctrlKey) {
+      analyzeSymptoms();
+    }
+  });
+});
+  </script>
+  <script src="script.js"></script>
+  <script>
+    // Functions to connect hospitals UI with map & server
+    async function findHospitalsForUser() {
+      if (!navigator.geolocation) return alert('Geolocation not supported');
+      const btn = document.getElementById('findHospitalsBtn');
+      btn.disabled = true; btn.innerText = 'Locating...';
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        try {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const res = await window.findNearbyHospitals(lat, lng, 5000);
+          renderHospitals(res.results || [], { lat, lng });
+        } catch (e) {
+          console.error(e);
+          alert('Failed to find hospitals');
+        } finally {
+          btn.disabled = false; btn.innerText = 'Find Nearby Hospitals';
+        }
+      }, (err) => { btn.disabled = false; btn.innerText = 'Find Nearby Hospitals'; alert('Location permission required'); });
+    }
+
+    async function renderHospitals(results, userLocation) {
+      document.getElementById('hospitalsPanel').style.display = 'block';
+      const list = document.getElementById('hospitalsList');
+      list.innerHTML = '';
+
+      // Load Google Maps script dynamically
+      try {
+        const key = await window.getMapsKey();
+        if (!window.google || !window.google.maps) {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = `https://maps.googleapis.com/maps/api/js?key=${key}`;
+            s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+          });
+        }
+      } catch (e) {
+        console.warn('Could not load Google Maps JS', e);
+      }
+
+      // Initialize map if available
+      let map = null;
+      if (window.google && window.google.maps) {
+        map = new google.maps.Map(document.getElementById('map'), {
+          center: { lat: userLocation.lat, lng: userLocation.lng }, zoom: 13
+        });
+        new google.maps.Marker({ position: { lat: userLocation.lat, lng: userLocation.lng }, map, title: 'You' });
+      }
+
+      results.forEach((r, idx) => {
+        const li = document.createElement('li');
+        li.style.padding = '10px'; li.style.borderBottom = '1px solid #eee';
+        li.innerHTML = `<strong>${r.name}</strong><div style="font-size:12px;color:#666;">${r.vicinity || ''}</div><div style="margin-top:6px;"><button class='btn-secondary' onclick="showPlaceDetails('${r.place_id}')">Details</button> <a class='btn-primary' href='https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.name)}&query_place_id=${r.place_id}' target='_blank' style='text-decoration:none; display:inline-block; margin-left:6px; padding:6px 10px; border-radius:6px; color:white;'>Open in Maps</a></div>`;
+        list.appendChild(li);
+
+        if (map && r.location) {
+          const marker = new google.maps.Marker({ position: { lat: r.location.lat, lng: r.location.lng }, map, title: r.name });
+          marker.addListener('click', () => { map.setCenter(marker.getPosition()); });
+        }
+      });
+    }
+
+    async function showPlaceDetails(place_id) {
+      try {
+        const res = await window.getPlaceDetails(place_id);
+        const p = res.result;
+        const details = `Name: ${p.name}\nAddress: ${p.formatted_address || ''}\nPhone: ${p.formatted_phone_number || ''}\nWebsite: ${p.website || ''}\nRating: ${p.rating || 'N/A'}`;
+        alert(details);
+      } catch (e) {
+        console.error(e);
+        alert('Failed to fetch place details');
+      }
+    }
+
+      async function searchHospitalsByRegion() {
+        const region = document.getElementById('regionInput').value.trim();
+        if (!region) { alert('Please enter a region or city'); return; }
+        const btn = document.querySelector('#regionInput + button');
+        if (btn) { btn.disabled = true; btn.innerText = 'Searching...'; }
+        try {
+          const res = await window.findHospitalsByRegion(region);
+          // Try to guess a center from first result or fallback to 0,0
+          const center = (res.results && res.results.length && res.results[0].location) ? { lat: res.results[0].location.lat, lng: res.results[0].location.lng } : { lat: 0, lng: 0 };
+          renderHospitals(res.results || [], center);
+        } catch (e) {
+          console.error(e);
+          alert('Region search failed');
+        } finally {
+          if (btn) { btn.disabled = false; btn.innerText = 'Search Region'; }
+        }
+      }
+
+      // Doctor search functions
+      async function findDoctorsForUser() {
+        if (!navigator.geolocation) return alert('Geolocation not supported');
+        const btn = document.getElementById('findDoctorsBtn');
+        btn.disabled = true; btn.innerText = 'Locating...';
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+          try {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const res = await window.findNearbyDoctors(lat, lng, 5000);
+            renderDoctors(res.doctors || [], { lat, lng });
+          } catch (e) {
+            console.error(e);
+            alert('Failed to find doctors');
+          } finally {
+            btn.disabled = false; btn.innerText = 'Find Doctors';
+          }
+        }, (err) => { btn.disabled = false; btn.innerText = 'Find Doctors'; alert('Location permission required'); });
+      }
+
+      async function renderDoctors(doctors, userLocation) {
+        document.getElementById('doctorsPanel').style.display = 'block';
+        const list = document.getElementById('doctorsList');
+        list.innerHTML = '';
+
+        // Load Google Maps script dynamically
+        try {
+          const key = await window.getMapsKey();
+          if (!window.google || !window.google.maps) {
+            await new Promise((resolve, reject) => {
+              const s = document.createElement('script');
+              s.src = `https://maps.googleapis.com/maps/api/js?key=${key}`;
+              s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+            });
+          }
+        } catch (e) {
+          console.warn('Could not load Google Maps JS', e);
+        }
+
+        // Initialize map if available
+        let map = null;
+        if (window.google && window.google.maps) {
+          map = new google.maps.Map(document.getElementById('doctorMap'), {
+            center: { lat: userLocation.lat, lng: userLocation.lng }, zoom: 13
+          });
+          new google.maps.Marker({ position: { lat: userLocation.lat, lng: userLocation.lng }, map, title: 'You' });
+        }
+
+        doctors.forEach((d, idx) => {
+          const li = document.createElement('li');
+          li.style.padding = '10px'; li.style.borderBottom = '1px solid #eee';
+          const ratingStr = d.rating ? `${d.rating}⭐` : 'No rating';
+          li.innerHTML = `<strong>${d.name}</strong><div style="font-size:12px;color:#666;">${d.address || ''}</div><div style="font-size:11px;color:#999;">Rating: ${ratingStr}</div><div style="margin-top:6px;"><a class='btn-primary' href='${d.maps_url}' target='_blank' style='text-decoration:none; display:inline-block; padding:6px 10px; border-radius:6px; color:white;'>View on Maps</a></div>`;
+          list.appendChild(li);
+
+          if (map && d.lat && d.lng) {
+            const marker = new google.maps.Marker({ position: { lat: d.lat, lng: d.lng }, map, title: d.name });
+            marker.addListener('click', () => { map.setCenter(marker.getPosition()); });
+          }
+        });
+      }
+  </script>
+</body>
+</html>
